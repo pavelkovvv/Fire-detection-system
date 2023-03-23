@@ -16,4 +16,4 @@
 - Провода для коммутации компонентов;
 
 ## Принципиальная схема проекта
-![](https://disk.yandex.ru/i/VY6u2yCOsFCdvw)
+![Схема_итоговая](https://user-images.githubusercontent.com/115872772/227248547-6a7b32be-9f8c-4d75-b4b2-685e36fba6be.png)
