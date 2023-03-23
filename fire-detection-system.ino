@@ -1,129 +1,150 @@
-#include <SoftwareSerial.h> 
-#include "DHT.h"
+#include <SoftwareSerial.h> // Подключение библиотеки для работы последовательного порта
+#include "DHT.h" // Подключение библиотеки для работы с датчиком DHT11 (Температура и влажность)
+
+#define piezoPin 5 // Подключение цифрового сигнального пина зуммера
+#define flamePin A1 // Подключение аналогового сигнального пина датчика обнаружения огня
+#define analogSignal A0 // Подключение аналогового сигнального пина датчика дыма
+#define DHTPIN 2 // Подключение цифрового сигнального пина датчика температуры и влажности
+#define digitalSignal 8 // Подключение цифрового сигнального пина датчика дыма
+
 SoftwareSerial sim800l(8, 9); // 8 - RX Arduino (TX SIM800L), 9 - TX Arduino (RX SIM800L)
-int piezoPin = 5;
-#define flamePin A1
-int flame;
-#define DHTPIN 2
-DHT dht(DHTPIN, DHT11);
-int quantity = 0; // для того, чтобы смс не отправлялось дважды
-unsigned long last_time;//переменная для хранения времени
-char incomingByte;//переменная для считывания данных из смс
-String inputString;//переменная для записи данных смс
-#define analogSignal A0 //подключение аналогового сигнального пина датчика газа
-int digitalSignal = 8; //подключение цифрового сигнального пина датчика газа
+DHT dht(DHTPIN, DHT11); // Определяем подключение пина к датчику DHT11 
 
-int noGas;
-float gasValue;
-float t;
-float p;
-float h;
+char incomingByte; // Определяем переменную для считывания данных из SMS
+String inputString; // Определяем переменную для записи данных из SMS
+int flame; // Определяем переменную для считывания данных с датчика огня
+int noGas; // Определяем переменную для считывания значения о присутствии дыма в воздухе
+float gasValue; // Определяем пересенную для считывания значения о количестве дыма в воздухе
+float t; // Определяем переменную для считывания значения температуры с датчика DHT11
+float h; // Определяем переменную для считывания значения влажности с датчика DHT 11
 
-void SendSMS()
+void SendSMS() // Функция для отправки SMS об обнаружении открытого огня или о задымлении
 {
-  Serial.println("Sending SMS...");                // Печать текста
-  sim800l.print("AT+CMGF=1\r");                   // Выбирает формат SMS
-  delay(100);
-  sim800l.print("AT+CMGS=\"+79235671896\"\r");  // Отправка СМС на указанный номер +792100000000"
-  delay(300);
-  sim800l.println("Attention, Emergency situation!\n");
-  sim800l.print("Humidity: "); 
-  sim800l.print(dht.readHumidity());
-  sim800l.print(" %"); 
-  sim800l.println("\n");       // Тест сообщения
-  sim800l.print("Temperature: "); 
-  sim800l.print(dht.readTemperature());
-  sim800l.print(" *C"); 
-  delay(300);
-  sim800l.print((char)26);// (требуется в соответствии с таблицей данных)
-  delay(300);
-  sim800l.println();
-  Serial.println("Text Sent.");
-  delay(500);
+  Serial.println("Sending SMS..."); // Отправка текста "Sending SMS..." в последовательный порт
+  sim800l.print("AT+CMGF=1\r"); // Выбираем формат отправки SMS
+  delay(100); // Задержка 100 мс
+  sim800l.print("AT+CMGS=\"+79235671896\"\r");  // Отправка СМС на указанный номер в формате +79*********"
+  delay(300); // Задержка 300 мс
+                  // Указываем, то что будет содержаться в отправленном SMS//
+  sim800l.println("Attention, emergency situation!\n"); // Часть текста, которая будет содержаться в SMS
+  sim800l.print("Humidity: "); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(dht.readHumidity()); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(" %"); // Часть текста, которая будет содержаться в SMS
+  sim800l.println("\n"); // Часть текста, которая будет содержаться в SMS
+  sim800l.print("Temperature: "); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(dht.readTemperature()); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(" *C"); // Часть текста, которая будет содержаться в SMS
+  gasValue = analogRead(analogSignal); // Считываем и записываем значение о количестве дыма в воздухе   
+  if (gasValue > 449) { // Если количество дыма превышает допустимую норму, то...
+    sim800l.println("\n"); // Часть текста, которая будет содержаться в SMS
+    sim800l.print("The air is polluted!"); // Часть текста, которая будет содержаться в SMS
+    sim800l.println("\n"); // Часть текста, которая будет содержаться в SMS
+    sim800l.print("Air quality: "); // Часть текста, которая будет содержаться в SMS
+    sim800l.print(gasValue); // Часть текста, которая будет содержаться в SMS
+    sim800l.print(" PPM"); // Часть текста, которая будет содержаться в SMS
+  }
+  delay(500); // Задержка 500 мс
+  sim800l.print((char)26); // Требуется в соответствии с таблицей данных для отправки SMS с помощью модуля SIM800L
+  delay(500); // Задержка 500 мс
+  Serial.println("Text Send."); // Отправка текста "Text Send" в последовательный порт
+  delay(2000); // Задержка 2 с
 }
 
-void sms(String text, String phone) {  // Процедура Отправка SMS
-  Serial.println("SMS send started");
-  sim800l.println("AT+CMGS=\"" + phone + "\"");
-  delay(500);
-  sim800l.print(text);
-  delay(500);
-  sim800l.print((char)26);
-  delay(500);
-  Serial.println("SMS send complete");
-  delay(2000);
-}
-
-void setup()
+void SendSMSInfo() // Функция для отправки SMS данных, полученных с датчиков по запросу пользователя
 {
-  pinMode(flamePin, INPUT);
-  pinMode(piezoPin, OUTPUT);
-  pinMode(digitalSignal, INPUT); //установка режима пина датчика газа
-  dht.begin();
-  sim800l.begin(9600);   //Инициализация последовательной связи с Arduino и SIM800L
-  Serial.begin(9600);   // Инициализация последовательной связи с Arduino и Arduino IDE (Serial Monitor)
+  Serial.println("Sending Info SMS"); // Отправка текста "Sending Info SMS" в последовательный порт
+  sim800l.print("AT+CMGS=\"+79235671896\"\r");  // Отправка СМС на указанный номер в формате +79*********"
+  delay(500); // Задержка 500 мс
+  sim800l.print("Humidity: "); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(dht.readHumidity()); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(" %"); // Часть текста, которая будет содержаться в SMS
+  sim800l.println("\n"); // Часть текста, которая будет содержаться в SMS
+  sim800l.print("Temperature: "); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(dht.readTemperature()); // Часть текста, которая будет содержаться в SMS
+  sim800l.print(" *C"); // Часть текста, которая будет содержаться в SMS
+  gasValue = analogRead(analogSignal); // Считываем и записываем значение о количестве дыма в воздухе  
+  if (gasValue < 449) { // Если количество дыма не превышает допустимую норму, то...
+    sim800l.println("\n"); // Часть текста, которая будет содержаться в SMS
+    sim800l.print("The air is clear."); // Часть текста, которая будет содержаться в SMS
+    sim800l.println("\n"); // Часть текста, которая будет содержаться в SMS
+    sim800l.print("Air quality: "); // Часть текста, которая будет содержаться в SMS
+    sim800l.print(gasValue); // Часть текста, которая будет содержаться в SMS
+    sim800l.print(" PPM"); // Часть текста, которая будет содержаться в SMS
+  }
+  delay(500); // Задержка 500 мс
+  sim800l.print((char)26); // Требуется в соответствии с таблицей данных для отправки SMS с помощью модуля SIM800L
+  delay(500); // Задержка 500 мс
+  Serial.println("Text Send."); // Отправка текста "Text Send" в последовательный порт
+  delay(2000); // Задержка 2 с
+}
 
-  while(!sim800l.available()){             // Зацикливаем и ждем инициализацию SIM800L
-   sim800l.println("AT");                  // Отправка команды AT
-   delay(1000);                             // Пауза
-   Serial.println("Connecting...");         // Печатаем текст
-   }
-   Serial.println("Connected!");            // Печатаем текст
-   sim800l.println("AT+CMGF=1");           // Отправка команды AT+CMGF=1
-   delay(1000);                             // Пауза
-   sim800l.println("AT+CNMI=1,2,0,0,0");   // Отправка команды AT+CNMI=1,2,0,0,0
-   delay(1000);                             // Пауза
-   sim800l.println("AT+CMGL=\"REC UNREAD\"");
+void setup() // Функция, отвечающая за инициализацию работы всего проекта, запускается в самом начале выполнения программы
+{
+  pinMode(flamePin, INPUT); // Установка режима пина датчика огня на вход
+  pinMode(piezoPin, OUTPUT); // Установка режима пина зуммера на выход
+  pinMode(digitalSignal, INPUT); // Установка режима пина датчика дыма на вход
+  dht.begin(); // Инициализируем работу датчика DHT11 (температура и влажность)
+  sim800l.begin(9600); // Инициализация последовательной связи с Arduino и SIM800L
+  Serial.begin(9600); // Инициализация последовательной связи с Arduino и Arduino IDE (Serial Monitor)
+
+  while(!sim800l.available()) { // Зацикливаем и ждем инициализацию SIM800L
+    sim800l.println("AT"); // Отправка команды "AT"
+    delay(1000); // Задержка 1 с
+    Serial.println("Connecting..."); // Отправка текста "Connecting..." в последовательный порт
+  }
+  Serial.println("Connected!"); // Отправка текста "Connected!" в последовательный порт
+  sim800l.println("AT+CMGF=1"); // Отправка команды "AT+CMGF=1"
+  delay(1000); // Задержка 1 с
+  sim800l.println("AT+CNMI=1,2,0,0,0"); // Отправка команды "AT+CNMI=1,2,0,0,0"
+  delay(1000); // Задержка 1 с
+  sim800l.println("AT+CMGL=\"REC UNREAD\""); // Отправка команды "AT+CMGL=\"REC UNREAD\""
 }
 
 
-void loop() {
-  noGas = digitalRead(digitalSignal); //считываем значение о присутствии газа
-  gasValue = analogRead(analogSignal); // и о его количестве
-  Serial.println(noGas);
-  Serial.println(gasValue);
-  flame = digitalRead(flamePin);
-  Serial.print("Flame Sensor - ");
-  Serial.println(flame);
-  Serial.println(dht.readTemperature());
+void loop() { // Бесконечный цикл
+  noGas = digitalRead(digitalSignal); // Считываем значение о присутствии дыма в воздухе
+  gasValue = analogRead(analogSignal); // Считываем значение количества дыма в воздухе
+  flame = digitalRead(flamePin); // Считываем значение о присутсвии огня
+  Serial.print("Flame Sensor - "); // Отправка текста "Flame Sensor - " в последовательный порт
+  Serial.println(flame); // Отправка значения о присутствии огня в последовательный порт
 
-  if(sim800l.available()){                       // Проверяем, если есть доступные данные
-      delay(100);                                 // Пауза
+  if(sim800l.available()) { // Проверяем, если есть доступные данные в SIM800L
+      delay(100); // Задержка 100 мс
       
-      while(sim800l.available()){                // Проверяем, есть ли еще данные.
-      incomingByte = sim800l.read();             // Считываем байт и записываем в переменную incomingByte
-      inputString += incomingByte;                // Записываем считанный байт в массив inputString
+      while(sim800l.available()) { // Проверяем, есть ли еще данные
+      incomingByte = sim800l.read(); // Считываем байт и записываем в переменную incomingByte
+      inputString += incomingByte; // Записываем считанный байт в массив inputString
       }
    
-      delay(10);                                  // Пауза      
-      Serial.println(inputString);                // Отправка в "Мониторинг порта" считанные данные
-      inputString.toUpperCase();                  // Меняем все буквы на заглавные
+      delay(10); // Задержка 10 мс      
+      Serial.println(inputString); // Отправка считанных данных в последовательный порт
+      inputString.toUpperCase(); // Меняем все буквы на заглавные
  
-      if (inputString.indexOf("DATA") > -1){      // Проверяем полученные данные
-        t = dht.readTemperature();
-        h = dht.readHumidity();
-        sms(String("Temperature: " + String(t) + " *C " + " Humidity: " + String(h) + " % "), String("+79235671896")); // Отправка SMS  
-        }     
-        
-        delay(50);
-      if (inputString.indexOf("OK") == -1){
-          sim800l.println("AT+CMGDA=\"DEL ALL\"");
-          delay(1000);}
+      if (inputString.indexOf("DATA") > -1) { // Если пришло SMS с текстом "DATA", то..
+        t = dht.readTemperature(); // Считываем значение температуры с датчика DHT11
+        h = dht.readHumidity(); // Считываем значение влажности с датчика DHT11
+        SendSMSInfo(); // Отправляем SMS   
+      } 
+      delay(1000); // Задержка 1 с
+      if (inputString.indexOf("OK") == -1) { // Если в ответ модуль отправляет "ОК", то.. 
+          sim800l.println("AT+CMGDA=\"DEL ALL\""); // Отправляем команду, которая удаляет сообщения
+          delay(1000); // Задержка 1 с
+      }
     
-          inputString = "";
+          inputString = ""; // Присваеваем переменной пустое значение
   }
     
-  if (flame == HIGH) { // Если огня не обнаружено
-    Serial.println("GOOD");
-    delay(100);
+  if (flame == HIGH) { // Если огня не обнаружено, то..
+    Serial.println("All good."); // Отправка текста "All good." в последовательный порт
+    delay(100); // Задержка 1 с
   }
 
-  if (flame == LOW || gasValue > 449) { // Если огонь обнаружен
-    SendSMS();
-    Serial.println("POZHAR");
-    analogWrite(piezoPin, 1);
-    delay(1000); // Сколько работает пищалка
-    analogWrite(piezoPin, 0);
+  if (flame == LOW || gasValue > 449) { // Если огонь обнаружен, то..
+    SendSMS(); // Отправляем SMS о ЧС
+    Serial.println("Fire"); // Отправка текста "Fire" в последовательный порт
+    analogWrite(piezoPin, 1); // Включаем зуммер
+    delay(20000); // Ставим задержку 20 с для работы зуммера
+    analogWrite(piezoPin, 0); // Выключаем зуммер
   }
-  delay(1000);
+  delay(1000); // Задержка 1 с
 }
